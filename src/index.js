@@ -30,7 +30,7 @@ async function main() {
         await testDbConnection();
 
         // Iniciar los cron jobs de la aplicación
-        startSubscriptionManager();
+        // startSubscriptionManager();
 
         app.listen(PORT, () => {
             console.log(`Puerto: ${PORT}`);
