@@ -5,6 +5,7 @@ import { getConnection, releaseConnection } from '../database/connection.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import { sendEmailVerificationCode, sendWhatsAppVerificationCode } from '../services/notificacionServices.js';
 
 const { JWT_SECRET } = process.env;
 const SESSION_DURATION_HOURS = parseInt(process.env.SESSION_DURATION_HOURS ?? '4', 10);
@@ -158,14 +159,14 @@ export const loginUser = async (req, res) => {
 export const registerUserLocal = async (req, res) => {
     let client;
     try {
-        const { name, email, password, phone_number } = req.body;
+        const { email, password, phone_number, rol } = req.body;
 
         // 1. VALIDACIONES BÁSICAS DE LOS CAMPOS
-        if (!name || !email || !password || !phone_number) {
+        if (!email || !password || !phone_number || !rol) {
             return res.status(400).json({
                 status: "error",
                 code: 400,
-                message: "Nombre, email, contraseña y número de teléfono son requeridos."
+                message: "Email, contraseña, número de teléfono y rol son requeridos."
             });
         }
         
@@ -185,10 +186,10 @@ export const registerUserLocal = async (req, res) => {
 
         // 3. PREPARAR EL JSON PARA ENVIAR A LA FUNCIÓN PG
         const requestJsonToPg = JSON.stringify({
-            name,
             email: email.toLowerCase(),
             password_hash: passwordHash,
-            phone_number: phone_number || null
+            phone_number: phone_number || null,
+            rol: rol
         });
 
         // 4. LLAMAR A LA FUNCIÓN PG PARA REGISTRO DE USUARIO
@@ -291,7 +292,7 @@ export const verifyEmailAndLogin = async (req, res) => {
         const ipAddress = req.ip || req.connection?.remoteAddress || null;
 
         await client.query(
-            `INSERT INTO sessions (session_id, user_id, user_agent, ip_address, expires_at, last_activity_at)
+            `INSERT INTO sessions (session_id, usuario_id, user_agent, ip_address, expires_at, last_activity_at)
              VALUES ($1, $2, $3, $4, $5, $6)`,
             [sessionId, userDataFromDb.user_id, userAgent, ipAddress, expiresAt, now]
         );
