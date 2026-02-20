@@ -154,19 +154,19 @@ export const loginUser = async (req, res) => {
 
 
 // =========================================================================
-// 2. CONTROLADORES PARA REGISTRO, VERIFICACION Y REENVIO DE USUARIO LOCAL
+// 2. CONTROLADORES PARA REGISTRO DE DONANTES
 // =========================================================================
-export const registerUserLocal = async (req, res) => {
+export const registerDonante = async (req, res) => {
     let client;
     try {
-        const { email, password, phone_number, rol } = req.body;
+        const { name, lastname, email, password, phone_number } = req.body;
 
         // 1. VALIDACIONES BÁSICAS DE LOS CAMPOS
-        if (!email || !password || !phone_number || !rol) {
+        if (!name || !lastname || !email || !password) {
             return res.status(400).json({
                 status: "error",
                 code: 400,
-                message: "Email, contraseña, número de teléfono y rol son requeridos."
+                message: "Nombre, apellido, email y contraseña son requeridos."
             });
         }
         
@@ -179,22 +179,23 @@ export const registerUserLocal = async (req, res) => {
         }
 
         // 2. HASHEAR LA CONTRASEÑA
-        const saltRounds = 10; // NÚMERO DE ROUNDS PARA EL HASH (COSTO DE HASH)
+        const saltRounds = 10;
         const passwordHash = await bcrypt.hash(password, saltRounds);
 
         client = await getConnection();
 
         // 3. PREPARAR EL JSON PARA ENVIAR A LA FUNCIÓN PG
         const requestJsonToPg = JSON.stringify({
+            name: name,
+            lastname: lastname,
             email: email.toLowerCase(),
             password_hash: passwordHash,
-            phone_number: phone_number || null,
-            rol: rol
+            phone_number: phone_number || null
         });
 
-        // 4. LLAMAR A LA FUNCIÓN PG PARA REGISTRO DE USUARIO
-        const pgResponse = await client.query('SELECT * FROM api_user_register_local($1)', [requestJsonToPg]);
-        const registrationResult = pgResponse.rows[0].api_user_register_local;
+        // 4. LLAMAR A LA FUNCIÓN PG PARA REGISTRO DE DONANTE
+        const pgResponse = await client.query('SELECT * FROM api_user_register_local_donante($1)', [requestJsonToPg]);
+        const registrationResult = pgResponse.rows[0].api_user_register_local_donante;
 
         // 5. ENVIO DE RESPUESTA AL CLIENTE
         if (registrationResult.status !== 'success') {
@@ -214,6 +215,7 @@ export const registerUserLocal = async (req, res) => {
                         .catch(emailError => console.error("Error de fondo al enviar email de verificación:", emailError))
                 );
             }
+            /*
             // 6.2. Preparar envío de WhatsApp si el teléfono existe
             if (userData.phone_number) {
                  notificationPromises.push(
@@ -221,6 +223,7 @@ export const registerUserLocal = async (req, res) => {
                         .catch(whatsappError => console.error("Error de fondo al enviar WhatsApp de verificación:", whatsappError))
                 );
             }
+            */
             // 6.3. Ejecutar envíos en paralelo sin bloquear la respuesta al usuario
             Promise.allSettled(notificationPromises)
                 .then(results => console.log('Resultados del envío de notificaciones de registro:', results));
@@ -255,6 +258,93 @@ export const registerUserLocal = async (req, res) => {
     }
 };
 
+// =========================================================================
+// 3. CONTROLADORES PARA REGISTRO DE REFUGIOS
+// =========================================================================
+export const registerRefugio = async (req, res) => {
+    let client;
+    try {
+        const { name, ubicacion, email, password, phone_number } = req.body;
+
+        // 1. VALIDACIONES BÁSICAS DE LOS CAMPOS
+        if (!name || !ubicacion || !email || !password) {
+            return res.status(400).json({
+                status: "error",
+                code: 400,
+                message: "Nombre, ubicación, email y contraseña son requeridos."
+            });
+        }
+        
+        if (password.length < 8) {
+             return res.status(400).json({
+                status: "error",
+                code: 400,
+                message: "La contraseña debe tener al menos 8 caracteres."
+            });
+        }
+
+        // 2. HASHEAR LA CONTRASEÑA
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(password, saltRounds);
+
+        client = await getConnection();
+
+        // 3. PREPARAR EL JSON PARA ENVIAR A LA FUNCIÓN PG
+        const requestJsonToPg = JSON.stringify({
+            name: name,
+            ubicacion: ubicacion,
+            email: email.toLowerCase(),
+            password_hash: passwordHash,
+            phone_number: phone_number || null
+        });
+
+        // 4. LLAMAR A LA FUNCIÓN PG PARA REGISTRO DE REFUGIO
+        const pgResponse = await client.query('SELECT * FROM api_user_register_local_refugios($1)', [requestJsonToPg]);
+        const registrationResult = pgResponse.rows[0].api_user_register_local_refugios;
+
+        // 5. ENVIO DE RESPUESTA AL CLIENTE
+        if (registrationResult.status !== 'success') {
+            return res.status(registrationResult.code || 500).json(registrationResult);
+        }
+
+        // 6. PARA REGISTRO EXITOSO, ENVÍO DE NOTIFICACIONES DE VERIFICACIÓN
+        const userData = registrationResult.user_data;
+        const verificationCode = userData?.email_verification_code;
+
+        if (verificationCode && userData.email) {
+            sendEmailVerificationCode(userData.email, verificationCode)
+                .catch(emailError => console.error("Error al enviar email de verificación:", emailError));
+        }
+
+        // 7. ENVIAR RESPUESTA AL CLIENTE
+        res.status(registrationResult.code || 201).json({
+            status: "success",
+            message: registrationResult.message,
+            data: {
+                email: userData.email
+            }
+        });
+
+    } catch (error) {
+        console.error("Error en registerRefugio:", error);
+        if (error.code && error.message && error.status) {
+            return res.status(error.code).json(error);
+        }
+        res.status(500).json({
+            status: "error",
+            code: 500,
+            message: "Error interno del servidor durante el registro."
+        });
+    } finally {
+        if (client) {
+            releaseConnection(client);
+        }
+    }
+};
+
+// =========================================================================
+// 4. VERIFICACION Y REENVIO DE CODIGO
+// =========================================================================
 export const verifyEmailAndLogin = async (req, res) => {
     let client;
     try {
@@ -426,3 +516,201 @@ export const resendVerificationCode = async (req, res) => {
 // =========================================================================
 // FIN CONTROLADORES PARA REGISTRO, VERIFICACION Y REENVIO DE USUARIO LOCAL
 // =========================================================================
+
+
+// =============================================================
+// 3. CONTROLADORES PARA RESTABLECER CONTRASEÑA DE CUENTA
+// =============================================================
+export const requestPasswordReset = async (req, res) => {
+    let client;
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                status: "error",
+                code: 400,
+                message: "Email es requerido."
+            });
+        }
+
+        client = await getConnection();
+        const requestJsonToPg = JSON.stringify({ email: email.toLowerCase() });
+
+        const pgResponse = await client.query('SELECT * FROM api_user_request_password_reset($1)', [requestJsonToPg]);
+        const result = pgResponse.rows[0].api_user_request_password_reset;
+
+        // 1. MANEJO AJUSTADO DEL RESULTADO DE LA FUNCIÓN PG
+        if (result.status === 'error' && result.code === 404) {
+            console.log(`Solicitud de restablecimiento para ${email}, pero el email no está registrado (según PG).`);
+            
+            return res.status(404).json({
+                status: "error",
+                code: 404,
+                message: "El email ingresado, no está registrado"
+            });
+        }
+        
+        // 2. MANEJO DE ERRORES DE LA FUNCIÓN PG
+        if (result.status !== 'success') {
+            return res.status(result.code || 500).json(result);
+        }
+
+        // 3. SI LA FUNCIÓN PG FUE EXITOSA, ENVIAR EL CÓDIGO DE RESTABLECIMIENTO
+        const { email: userEmail, name: userName, phone_number: userPhoneNumber, password_reset_code: resetCode } = result.data;
+
+        const notificationPromises = [];
+        // 3.1. Preparar envío de email si el email existe
+        if (userEmail && resetCode) {
+            notificationPromises.push(
+                sendEmailPasswordResetCode(userEmail, userName, resetCode)
+                    .catch(e => console.error("Error de fondo al enviar email de restablecimiento:", e))
+            );
+        }
+
+        // 3.2. Preparar envío de SMS si el phone number existe
+        if (userPhoneNumber && resetCode) {
+            notificationPromises.push(
+                sendWhatsAppPasswordResetCode(userPhoneNumber, userName, resetCode)
+                    .catch(e => console.error("Error de fondo al enviar WhatsApp de restablecimiento:", e))
+            );
+        }
+
+        // 3.3. Ejecutar envíos en paralelo sin bloquear la respuesta al usuario
+        Promise.allSettled(notificationPromises)
+            .then(results => console.log('Resultados del envío de notificaciones de restablecimiento:', results));
+        
+
+        // 4. RESPUESTA EXITOSA AL CLIENTE
+        res.status(200).json({
+            status: "success",
+            code: 200,
+            message: "Si un email esta asociado, se enviará un código para restablecer la contraseña."
+        });
+
+    } catch (error) {
+        console.error("Error en requestPasswordReset:", error);
+        // 5. MANEJO DE ERRORES GENERALES
+        res.status(500).json({
+            status: "error",
+            code: 500,
+            message: "Error interno del servidor al solicitar restablecimiento de contraseña."
+        });
+    } finally {
+        if (client) {
+            releaseConnection(client);
+        }
+    }
+};
+
+export const verifyPasswordResetCode = async (req, res) => {
+    let client;
+    try {
+        const { email, code } = req.body;
+
+        if (!email || !code) {
+            return res.status(400).json({
+                status: "error",
+                code: 400,
+                message: "Email y código de restablecimiento son requeridos."
+            });
+        }
+
+        client = await getConnection();
+        const requestJsonToPg = JSON.stringify({ email: email.toLowerCase(), code });
+
+        const pgResponse = await client.query('SELECT * FROM api_user_verify_password_reset_code($1)', [requestJsonToPg]);
+        const result = pgResponse.rows[0].api_user_verify_password_reset_code;
+
+        // 1. MANEJO DE ERRORES DE LA FUNCIÓN PG
+        if (result.status !== 'success') {
+            return res.status(result.code || 400).json(result);
+        }
+
+        // 2. SI EL CÓDIGO ES VÁLIDO, RESPONDER CON ÉXITO
+        res.status(200).json({
+            status: "success",
+            code: 200,
+            message: "Código de restablecimiento validado. Ahora puedes establecer una nueva contraseña.",
+            data: {
+                email: result.data.email
+            }
+        });
+
+    } catch (error) {
+        // 3. MANEJO DE ERRORES GENERALES
+        console.error("Error en verifyPasswordResetCode (simplificado):", error);
+        res.status(500).json({
+            status: "error",
+            code: 500,
+            message: "Error interno del servidor al verificar el código de restablecimiento."
+        });
+    } finally {
+        if (client) {
+            releaseConnection(client);
+        }
+    }
+};
+
+export const resetPasswordWithCode = async (req, res) => {
+    let client;
+    try {
+        const { email, code, newPassword } = req.body;
+
+        if (!email || !code || !newPassword) {
+            return res.status(400).json({
+                status: "error",
+                code: 400,
+                message: "Email, código de restablecimiento y nueva contraseña son requeridos."
+            });
+        }
+        if (newPassword.length < 8) {
+            return res.status(400).json({
+                status: "error",
+                code: 400,
+                message: "La nueva contraseña debe tener al menos 8 caracteres."
+            });
+        }
+
+        const saltRounds = 10;
+        const passwordHash = await bcrypt.hash(newPassword, saltRounds);
+
+        client = await getConnection();
+        const requestJsonToPg = JSON.stringify({
+            email: email.toLowerCase(),
+            code: code,
+            password_hash: passwordHash
+        });
+
+        const pgResponse = await client.query('SELECT * FROM api_user_reset_password_with_code($1)', [requestJsonToPg]);
+        const result = pgResponse.rows[0].api_user_reset_password_with_code;
+
+        // 1. MANEJO DE ERRORES DE LA FUNCIÓN PG
+        if (result.status !== 'success') {
+            return res.status(result.code || 400).json(result);
+        }
+
+        // 2. SI EL CÓDIGO ES VÁLIDO Y LA CONTRASEÑA SE HA RESTABLECIDO, RESPONDER CON ÉXITO
+        res.status(result.code || 200).json({
+            status: "success",
+            message: result.message
+        });
+
+    } catch (error) {
+        console.error("Error en resetPasswordWithCode (simplificado):", error);
+        res.status(500).json({
+            status: "error",
+            code: 500,
+            message: "Error interno del servidor al restablecer la contraseña."
+        });
+    } finally {
+        if (client) {
+            releaseConnection(client);
+        }
+    }
+};
+
+// ============================================================= 
+// FIN CONTROLADORES PARA RESTABLECER CONTRASEÑA DE CUENTA 
+// =============================================================
+

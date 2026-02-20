@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { 
     loginUser, 
-    registerUserLocal, 
+    registerDonante,
+    registerRefugio, 
     verifyEmailAndLogin, 
     resendVerificationCode 
 } from '../controllers/login_and_register.controllers.js';
@@ -16,8 +17,11 @@ router.get('/health', (req, res) => {
 // Ruta de login de usuario
 router.post('/auth/login', loginUser);
 
-// Ruta de registro de usuario local
-router.post('/auth/register', registerUserLocal);
+// Ruta de registro de donante
+router.post('/auth/register/donante', registerDonante);
+
+// Ruta de registro de refugio
+router.post('/auth/register/refugio', registerRefugio);
 
 // Ruta de verificación de email y login automático
 router.post('/auth/verify-email', verifyEmailAndLogin);
