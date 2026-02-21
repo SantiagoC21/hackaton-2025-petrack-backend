@@ -4,7 +4,10 @@ import {
     registerDonante,
     registerRefugio, 
     verifyEmailAndLogin, 
-    resendVerificationCode 
+    resendVerificationCode,
+    requestPasswordReset,
+    verifyPasswordResetCode,
+    resetPasswordWithCode
 } from '../controllers/login_and_register.controllers.js';
 
 const router = Router();
@@ -28,5 +31,10 @@ router.post('/auth/verify-email', verifyEmailAndLogin);
 
 // Ruta de reenvío de código de verificación
 router.post('/auth/resend-code', resendVerificationCode);
+
+// Ruta de reenvío de código de verificación
+router.post('/auth/forgot-password', requestPasswordReset);
+router.post('/auth/verify-password-reset-code', verifyPasswordResetCode);
+router.post('/auth/reset-password', resetPasswordWithCode);
 
 export default router;
