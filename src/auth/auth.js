@@ -1,9 +1,9 @@
 import jwt from 'jsonwebtoken';
-import { getConnection, releaseConnection } from "../database/connection";
+import { getConnection, releaseConnection } from "../database/connection.js";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
-export const authenticanteToken = async (req, res, next) => {
+export const authenticateToken = async (req, res, next) => {
     const token = req.cookies.authToken;
 
     const cookieOptions = {
@@ -72,6 +72,7 @@ export const authenticanteToken = async (req, res, next) => {
         
         // 5. CONTINUAR
         next();
+    
 
     }
 
@@ -95,40 +96,3 @@ export const authenticanteToken = async (req, res, next) => {
     }
 }
 
-export const checkActiveSubscription = async (req, res, next) => {
-    let client;
-
-    try {
-        const userId = req.user.userId;
-
-        client = await getConnection();
-
-        const userQuery = await client.query(
-            'SELECT esta_activo FROM usuarios WHERE id = $1',
-            [userId]
-        );
-
-        if (userQuery.rows.length === 0 || !userQuery.rows[0].esta_activo) {
-            return res.status(403).json({
-                status: "error",
-                code: 403,
-                message: "Acceso denegado. Se requiere una suscripción activa."
-            });
-        }
-
-        next();
-    }
-    catch (error) {
-        console.error("Error en el middleware checkActiveSubscription:", error);
-        return res.status(500).json({
-            status: "error",
-            code: 500,
-            message: "Error interno del servidor al verificar la suscripción."
-        });
-    } finally {
-        if(client){
-            releaseConnection(client);
-        }
-    }
-    
-}

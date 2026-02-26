@@ -9,6 +9,8 @@ import {
     verifyPasswordResetCode,
     resetPasswordWithCode
 } from '../controllers/login_and_register.controllers.js';
+import { authenticateToken } from '../auth/auth.js';
+import { getUserHeaderData } from '../controllers/main_menu.controllers.js';
 
 const router = Router();
 
@@ -36,5 +38,9 @@ router.post('/auth/resend-code', resendVerificationCode);
 router.post('/auth/forgot-password', requestPasswordReset);
 router.post('/auth/verify-password-reset-code', verifyPasswordResetCode);
 router.post('/auth/reset-password', resetPasswordWithCode);
+
+
+// Ruta para obtener los datos de cabecera del usuario
+router.get('/user/header-data', authenticateToken, getUserHeaderData);
 
 export default router;
